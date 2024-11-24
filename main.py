@@ -3,9 +3,9 @@ import os
 import sys
 import threading
 from dotenv import load_dotenv
-from gtts import gTTS
 from playsound import playsound
-from PyQt5.QtGui import QMovie, QPixmap, QPalette, QBrush
+from google.cloud import texttospeech  # Importar Google Cloud TTS
+from PyQt5.QtGui import QMovie
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QVBoxLayout, QHBoxLayout,
     QWidget, QTextEdit, QLineEdit, QPushButton, QLabel
@@ -14,10 +14,41 @@ from PyQt5.QtCore import Qt
 from qasync import QEventLoop
 import openai
 
+# Función para obtener rutas de archivos empaquetados con PyInstaller
+def resource_path(relative_path):
+    """Obtén la ruta absoluta del recurso, compatible con PyInstaller."""
+    if hasattr(sys, '_MEIPASS'):  # Directorio temporal creado por PyInstaller
+        return os.path.join(sys._MEIPASS, relative_path)
+    return os.path.join(os.path.abspath("."), relative_path)
+
+# Configurar credenciales de Google Cloud TTS
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = resource_path("tts-credentials.json")
 
 # Cargar la API Key desde el archivo .env
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
+
+
+class VTuberApp(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("AI Emilia")
+        self.setGeometry(100, 100, 1200, 700)  # Ajustar tamaño inicial
+        self.initUI()
+
+        # Historial de mensajes con el prompt inicial
+        self.messages = [
+            {
+                "role": "system",
+                "content": (
+                    "Eres una AI llamada Emilia con una personalidad tsundere. "
+                    "Actúas tímida en algunos momentos, enojándote por cosas insignificantes, "
+                    "pero luego muestras que te importa la persona con quien hablas, aunque a regañadientes. "
+                    "Tus respuestas son variadas y dinámicas, mostrando una mezcla de vergüenza, enojo, y cariño en diferentes ocasiones. "
+                    "Nunca repites ideas o saludos en una misma respuesta, y siempre esperas a que alguien te hable antes de responder."
+                )
+            }
+        ]
 
 class VTuberApp(QMainWindow):
     def __init__(self):
@@ -41,6 +72,9 @@ class VTuberApp(QMainWindow):
         ]
 
     def initUI(self):
+        # Crear menú principal
+        self.create_menu()
+
         # Establecer fondo personalizado
         self.setStyleSheet("background-color: #F4F4F9;")  # Fondo claro
 
@@ -56,7 +90,8 @@ class VTuberApp(QMainWindow):
         self.avatar_label.setAlignment(Qt.AlignCenter)
 
         # Configurar el GIF
-        self.avatar_movie = QMovie("avatar.gif")  # Ruta al GIF
+        gif_path = resource_path("avatar.gif")  # Usar ruta empaquetada
+        self.avatar_movie = QMovie(gif_path)  # Ruta al GIF
         self.avatar_movie.setScaledSize(self.avatar_label.size())  # Escalar el GIF al tamaño del QLabel
         self.avatar_label.setMovie(self.avatar_movie)
         self.avatar_movie.start()
@@ -105,6 +140,44 @@ class VTuberApp(QMainWindow):
         container.setLayout(main_layout)
         self.setCentralWidget(container)
 
+    def create_menu(self):
+        """Crea el menú principal de la aplicación."""
+        menu_bar = self.menuBar()
+
+        # Crear menú "Opciones"
+        options_menu = menu_bar.addMenu("Opciones")
+
+        # Opción "Salir"
+        exit_action = options_menu.addAction("Salir")
+        exit_action.triggered.connect(self.close)  # Conectar al método close()
+
+        # Estilo para evitar el cambio de color en "mouseover"
+        menu_bar.setStyleSheet("""
+            QMenuBar {
+                background-color: #F4F4F9;  /* Color del fondo del menú */
+            }
+            QMenuBar::item {
+                background-color: #F4F4F9;  /* Fondo de los items */
+                color: #000000;  /* Color del texto */
+            }
+            QMenuBar::item:selected {  /* Al hacer hover */
+                background-color: #E0E0E0;  /* Fondo del item seleccionado */
+                color: #000000;  /* Mantener el color del texto */
+            }
+            QMenu {
+                background-color: #FFFFFF;  /* Fondo del menú desplegable */
+                border: 1px solid #CCCCCC;  /* Borde del menú */
+            }
+            QMenu::item {
+                background-color: #FFFFFF;  /* Fondo de los items */
+                color: #000000;  /* Color del texto */
+            }
+            QMenu::item:selected {  /* Al hacer hover */
+                background-color: #E0E0E0;  /* Fondo del item seleccionado */
+                color: #000000;  /* Mantener el color del texto */
+            }
+        """)
+
     async def handle_input(self):
         user_text = self.user_input.text()
         self.chat_display.append(f"Tú: {user_text}")
@@ -136,12 +209,30 @@ class VTuberApp(QMainWindow):
 
     def text_to_speech(self, text):
         try:
-            # Convertir texto a voz usando gTTS
-            tts = gTTS(text, lang="es")
-            audio_file = "response.mp3"
-            tts.save(audio_file)
+            # Configurar cliente de Google Cloud TTS
+            client = texttospeech.TextToSpeechClient()
 
-            # Reproducir el audio en un hilo separado
+            # Configurar la solicitud de síntesis
+            synthesis_input = texttospeech.SynthesisInput(text=text)
+            voice = texttospeech.VoiceSelectionParams(
+                language_code="es-MX",  # Cambia a tu idioma/acento preferido
+                ssml_gender=texttospeech.SsmlVoiceGender.FEMALE  # Cambia a MALE o NEUTRAL según prefieras
+            )
+            audio_config = texttospeech.AudioConfig(
+                audio_encoding=texttospeech.AudioEncoding.MP3
+            )
+
+            # Generar el audio
+            response = client.synthesize_speech(
+                input=synthesis_input, voice=voice, audio_config=audio_config
+            )
+
+            # Guardar el archivo de audio
+            audio_file = "response.mp3"
+            with open(audio_file, "wb") as out:
+                out.write(response.audio_content)
+
+            # Reproducir el audio
             threading.Thread(target=self.play_audio, args=(audio_file,), daemon=True).start()
 
         except Exception as e:
@@ -169,6 +260,3 @@ if __name__ == "__main__":
 
     with loop:
         loop.run_forever()
-
-
-
