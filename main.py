@@ -1,18 +1,25 @@
-import asyncio
-import os
-import sys
-import threading
-from dotenv import load_dotenv
-from playsound import playsound
-from google.cloud import texttospeech  # Importar Google Cloud TTS
-from PyQt5.QtGui import QMovie
-from PyQt5.QtWidgets import (
+# Importar módulos estándar de Python
+import asyncio  # Para manejar tareas asincrónicas
+import openai  # Para interactuar con la API de OpenAI
+import os  # Para manejar operaciones del sistema operativo
+import sys  # Para manejar operaciones del sistema y argumentos del script
+import threading  # Para manejar hilos de ejecución
+
+# Importar módulos de terceros
+from dotenv import load_dotenv  # Para cargar variables de entorno desde un archivo .env
+from google.cloud import texttospeech  # Cliente para Google Cloud Text-to-Speech
+from playsound import playsound  # Para reproducir archivos de audio
+
+# Importar módulos específicos de PyQt5
+from PyQt5.QtCore import Qt  # Para configuraciones generales de PyQt (alineación, etc.)
+from PyQt5.QtGui import QMovie  # Para manejar animaciones en formato GIF
+from PyQt5.QtWidgets import (  # Para crear y gestionar la interfaz gráfica
     QApplication, QMainWindow, QVBoxLayout, QHBoxLayout,
     QWidget, QTextEdit, QLineEdit, QPushButton, QLabel
 )
-from PyQt5.QtCore import Qt
-from qasync import QEventLoop
-import openai
+
+# Integración de asyncio con PyQt
+from qasync import QEventLoop  # Permite usar asyncio en aplicaciones PyQt
 
 # Función para obtener rutas de archivos empaquetados con PyInstaller
 def resource_path(relative_path):
@@ -28,8 +35,7 @@ os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = resource_path("tts-credentials.js
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
-
-class VTuberApp(QMainWindow):
+class EmiliaChatApp(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("AI Emilia")
@@ -50,7 +56,7 @@ class VTuberApp(QMainWindow):
             }
         ]
 
-class VTuberApp(QMainWindow):
+class EmiliaChatApp(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("AI Emilia")
@@ -215,8 +221,8 @@ class VTuberApp(QMainWindow):
             # Configurar la solicitud de síntesis
             synthesis_input = texttospeech.SynthesisInput(text=text)
             voice = texttospeech.VoiceSelectionParams(
-                language_code="es-MX",  # Cambia a tu idioma/acento preferido
-                ssml_gender=texttospeech.SsmlVoiceGender.FEMALE  # Cambia a MALE o NEUTRAL según prefieras
+                language_code="es-MX",  # Cambiar a al idioma/acento preferido
+                ssml_gender=texttospeech.SsmlVoiceGender.FEMALE  # Cambiar el género de la voz
             )
             audio_config = texttospeech.AudioConfig(
                 audio_encoding=texttospeech.AudioEncoding.MP3
@@ -246,7 +252,6 @@ class VTuberApp(QMainWindow):
         except Exception as e:
             print(f"Error al reproducir el audio: {e}")
 
-
 # Correr la aplicación
 if __name__ == "__main__":
     app = QApplication(sys.argv)
@@ -255,7 +260,7 @@ if __name__ == "__main__":
     loop = QEventLoop(app)
     asyncio.set_event_loop(loop)
 
-    window = VTuberApp()
+    window = EmiliaChatApp()
     window.show()
 
     with loop:
